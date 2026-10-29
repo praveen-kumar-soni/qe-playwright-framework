@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Pytest / testing artifacts
+.pytest_cache/
+test-output/
+report.html
+
+# Playwright / test run artifacts
+allure-results/
+screenshots/
+videos/
+
+# Poetry
+# (poetry.lock IS committed intentionally for reproducible installs)
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
