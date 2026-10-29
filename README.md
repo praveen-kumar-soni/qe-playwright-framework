@@ -9,6 +9,7 @@ A Python test automation framework built on [Playwright](https://playwright.dev/
 - **Automatic failure artifacts** — screenshots, video recordings, and Playwright traces are captured and attached to the Allure report whenever a test fails.
 - **Allure reporting** for rich, interactive HTML test reports, plus a self-contained `pytest-html` report.
 - **Custom markers** (e.g. `sanity`) to group and selectively run tests.
+- **Shared utilities** ([src/utils](./src/utils)) — directory helpers, centralized/env-overridable base URLs, and structured logging, used by `conftest.py` and page objects.
 
 ## Project Structure
 
@@ -22,7 +23,8 @@ qe-playwright-framework/
 ├── src/
 │   ├── base/
 │   │   └── base_page.py     # Base class all page objects inherit from
-│   └── pages/                # Page Object classes (e.g. SauceDemoLoginPage, SearchPage)
+│   ├── pages/                # Page Object classes (e.g. SauceDemoLoginPage, SearchPage)
+│   └── utils/                 # Shared helpers (file_utils, config, logger)
 ├── tests/                    # Pytest test suites (test_*.py)
 ├── screenshots/               # Failure screenshots (auto-generated)
 ├── videos/                    # Failure videos (auto-generated)
@@ -153,3 +155,13 @@ def test_saucedemo_login_with_credentials_from_footer(page_context: Page):
 | Utilities | `take_screenshot`, `execute_script` |
 
 For actions not covered above (e.g. `hover`, `check`/`uncheck`, `select_option`), call the Playwright `Locator` method directly — there's no need to wrap a 1:1 pass-through.
+
+### Utilities reference
+
+[src/utils](./src/utils) provides small, focused helpers shared across the suite:
+
+| Module | Provides | Notes |
+|---|---|---|
+| [file_utils.py](./src/utils/file_utils.py) | `ensure_dir(path)` | Creates a directory (and parents) if missing, returns a `Path` |
+| [config.py](./src/utils/config.py) | `SAUCEDEMO_BASE_URL`, `DUCKDUCKGO_BASE_URL` | Centralized base URLs for apps under test; override per environment, e.g. `SAUCEDEMO_BASE_URL=https://staging.saucedemo.com poetry run pytest` |
+| [logger.py](./src/utils/logger.py) | `get_logger(name)` | Structured logging (timestamp/level) — use instead of `print()` in fixtures/tests |
