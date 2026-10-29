@@ -3,6 +3,7 @@ import re
 from playwright.sync_api import Page, expect
 
 from src.base.base_page import BasePage
+from src.utils.config import SAUCEDEMO_BASE_URL
 
 
 class SauceDemoLoginPage(BasePage):
@@ -15,7 +16,7 @@ class SauceDemoLoginPage(BasePage):
         self.password_hint = page.locator(".login_password")
 
     def open(self):
-        self.navigate("https://www.saucedemo.com/")
+        self.navigate(SAUCEDEMO_BASE_URL)
 
     def get_credentials(self) -> tuple[str, str]:
         username_match = re.search(r"standard_user", self.credentials.inner_text())

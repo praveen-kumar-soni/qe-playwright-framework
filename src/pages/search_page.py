@@ -1,6 +1,7 @@
 from playwright.sync_api import Page, Locator, expect
 
 from src.base.base_page import BasePage
+from src.utils.config import DUCKDUCKGO_BASE_URL
 
 
 class SearchPage(BasePage):
@@ -13,7 +14,7 @@ class SearchPage(BasePage):
         self.results = page.locator('article[data-testid="result"]')
 
     def open(self):
-        self.page.goto("https://duckduckgo.com")
+        self.page.goto(DUCKDUCKGO_BASE_URL)
 
     def search(self, text: str):
         expect(self.search_box).to_be_visible()

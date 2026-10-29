@@ -4,6 +4,11 @@ import allure
 import pytest
 from playwright.sync_api import Playwright, Browser, Page, BrowserContext
 
+from src.utils.file_utils import ensure_dir
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 @pytest.fixture(scope="session")
 def browser_instance(playwright: Playwright) -> Browser:
@@ -14,7 +19,7 @@ def browser_instance(playwright: Playwright) -> Browser:
 
 @pytest.fixture(scope="function")
 def page_context(request, browser_instance: Browser) -> Page:
-    print("\nSetting up a new browser context for the test...", request.node.name)
+    logger.info("Setting up a new browser context for the test... %s", request.node.name)
 
     context: BrowserContext = browser_instance.new_context(
         ignore_https_errors=True,
@@ -30,8 +35,7 @@ def page_context(request, browser_instance: Browser) -> Page:
     video = page.video
 
     if failed:
-        trace_dir = Path("test-output")
-        trace_dir.mkdir(parents=True, exist_ok=True)
+        trace_dir = ensure_dir("test-output")
         trace_path = trace_dir / f"{request.node.name}_trace.zip"
         context.tracing.stop(path=str(trace_path))
     else:
@@ -44,13 +48,12 @@ def page_context(request, browser_instance: Browser) -> Page:
 
     if failed and video:
         video_path = Path(video.path())
-        video_dir = Path("videos")
-        video_dir.mkdir(parents=True, exist_ok=True)
+        video_dir = ensure_dir("videos")
         new_video_path = video_dir / f"{request.node.name}.webm"
         video.save_as(new_video_path)
         if video_path != new_video_path and video_path.exists():
             video_path.unlink()
-        print(f"Video saved to {new_video_path}")
+        logger.info("Video saved to %s", new_video_path)
         allure.attach.file(str(new_video_path), name=f"{request.node.name}_video", attachment_type=allure.attachment_type.WEBM)
 
 
@@ -63,8 +66,7 @@ def session_page_context(browser_instance: Browser) -> Page:
     context.tracing.start(screenshots=True, snapshots=True, sources=True)
     page: Page = context.new_page()
     yield page
-    trace_dir = Path("test-output")
-    trace_dir.mkdir(parents=True, exist_ok=True)
+    trace_dir = ensure_dir("test-output")
     context.tracing.stop(path=str(trace_dir / "session_trace.zip"))
     context.close()
 
@@ -75,20 +77,19 @@ def pytest_runtest_makereport(item, call):
     report = outcome.get_result()
     if report.when == "call":
         if report.failed:
-            print(f"\nTest {item.name} ❌ FAILED")
+            logger.error("Test %s ❌ FAILED", item.name)
         else:
-            print(f"\nTest {item.name} ✅ PASSED")
+            logger.info("Test %s ✅ PASSED", item.name)
 
     setattr(item, f"rep_{report.when}", report)
 
     if report.when == "call" and report.failed:
         active_page = item.funcargs.get("page_context") or item.funcargs.get("session_page_context")
         if active_page:
-            screenshot_dir = Path("screenshots")
-            screenshot_dir.mkdir(parents=True, exist_ok=True)
-            screenshot_path = f"screenshots/{item.name}.png"
-            active_page.screenshot(path=screenshot_path, full_page=True)
-            print(f"Screenshot saved to {screenshot_path}")
+            screenshot_dir = ensure_dir("screenshots")
+            screenshot_path = screenshot_dir / f"{item.name}.png"
+            active_page.screenshot(path=str(screenshot_path), full_page=True)
+            logger.info("Screenshot saved to %s", screenshot_path)
 
             allure.attach.file(
                 str(screenshot_path),
