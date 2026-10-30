@@ -1,13 +1,13 @@
 import pytest
 from playwright.sync_api import Page, expect
 
-from src.pages.saucedemo_login_page import SauceDemoLoginPage
+from src.pages.ecommerce.saucedemo_login_page import SauceDemoLoginPage
 
 
 @pytest.mark.sanity
-def test_saucedemo_login_with_credentials_from_footer(page_context: Page):
+def test_saucedemo_login_with_credentials_from_footer(page_context: Page, team_config):
     login_page = SauceDemoLoginPage(page_context)
-    login_page.open()
+    login_page.open(team_config["saucedemo_base_url"])
 
     username, password = login_page.get_credentials()
     login_page.login(username, password)

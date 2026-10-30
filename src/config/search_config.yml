@@ -1,0 +1,7 @@
+dev:
+  duckduckgo_base_url: "https://duckduckgo.com"
+staging:
+  # DuckDuckGo is a live external service with no separate staging
+  # environment; same URL used here for demonstration purposes.
+  duckduckgo_base_url: "https://duckduckgo.com"
+

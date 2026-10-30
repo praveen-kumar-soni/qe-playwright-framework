@@ -1,14 +1,14 @@
 import pytest
 from playwright.sync_api import Page, expect
 
-from src.pages.search_page import SearchPage
+from src.pages.search.search_page import SearchPage
 
 
 @pytest.fixture(autouse=True)
-def setup(session_page_context: Page):
+def setup(session_page_context: Page, team_config):
     """Navigate to DuckDuckGo before each test in this module."""
     search_page = SearchPage(session_page_context)
-    search_page.open()
+    search_page.open(team_config["duckduckgo_base_url"])
     yield
 
 

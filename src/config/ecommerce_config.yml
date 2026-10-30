@@ -1,0 +1,7 @@
+dev:
+  saucedemo_base_url: "https://www.saucedemo.com/"
+staging:
+  # Placeholder — saucedemo.com is a public demo app with no real staging
+  # environment; replace with the actual staging URL when one exists.
+  saucedemo_base_url: "https://staging.saucedemo.com/"
+

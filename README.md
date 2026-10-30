@@ -4,12 +4,13 @@ A Python test automation framework built on [Playwright](https://playwright.dev/
 
 ## Features
 
-- **Page Object Model** — reusable, maintainable page classes under [src/pages](./src/pages), built on a shared [BasePage](./src/base/base_page.py).
+- **Page Object Model** — reusable, maintainable page classes under [src/pages](./src/pages), organized per team/application, built on a shared [BasePage](./src/base/base_page.py).
+- **Multi-team structure** — each team/application owns its own page objects ([src/pages/\<team\>](./src/pages)), tests ([tests/\<team\>](./tests)), and YAML config ([src/config/\<team\>_config.yml](./src/config)), while core framework code (`BasePage`, fixtures, utilities) stays shared.
 - **Pytest fixtures** ([conftest.py](./conftest.py)) for per-test (`page_context`) and per-session (`session_page_context`) browser contexts.
 - **Automatic failure artifacts** — screenshots, video recordings, and Playwright traces are captured and attached to the Allure report whenever a test fails.
 - **Allure reporting** for rich, interactive HTML test reports, plus a self-contained `pytest-html` report.
 - **Custom markers** (e.g. `sanity`) to group and selectively run tests.
-- **Shared utilities** ([src/utils](./src/utils)) — directory helpers, centralized/env-overridable base URLs, and structured logging, used by `conftest.py` and page objects.
+- **Shared utilities** ([src/utils](./src/utils)) — directory helpers, per-team YAML config loading (with env-var overrides), and structured logging, used by `conftest.py` and page objects.
 
 ## Project Structure
 
@@ -23,9 +24,14 @@ qe-playwright-framework/
 ├── src/
 │   ├── base/
 │   │   └── base_page.py     # Base class all page objects inherit from
-│   ├── pages/                # Page Object classes (e.g. SauceDemoLoginPage, SearchPage)
-│   └── utils/                 # Shared helpers (file_utils, config, logger)
-├── tests/                    # Pytest test suites (test_*.py)
+│   ├── config/                # Per-team YAML config (e.g. ecommerce_config.yml, search_config.yml)
+│   ├── pages/
+│   │   ├── ecommerce/          # Page objects for the "ecommerce" team's app (SauceDemo)
+│   │   └── search/              # Page objects for the "search" team's app (DuckDuckGo)
+│   └── utils/                 # Shared helpers (file_utils, config loader, logger)
+├── tests/                     # Test files only — organized to mirror src/pages by team
+│   ├── ecommerce/
+│   └── search/
 ├── screenshots/               # Failure screenshots (auto-generated)
 ├── videos/                    # Failure videos (auto-generated)
 ├── allure-results/             # Raw Allure results (auto-generated)
@@ -74,10 +80,16 @@ Run the full suite:
 poetry run pytest
 ```
 
+Run a specific team's tests:
+
+```bash
+poetry run pytest tests/ecommerce/
+```
+
 Run a specific file:
 
 ```bash
-poetry run pytest tests/test_saucedemo_login.py
+poetry run pytest tests/ecommerce/test_saucedemo_login.py
 ```
 
 Run only tests tagged with a marker (e.g. `sanity`):
@@ -118,10 +130,11 @@ poetry run playwright show-trace test-output/<test_name>_trace.zip
 
 ## Writing Tests
 
-1. **Add a page object** under [src/pages](./src/pages), extending [BasePage](./src/base/base_page.py) and exposing locators plus user-facing actions (e.g. `login`, `search`). Prefer Playwright's semantic locators (`page.get_by_role`, `get_by_label`, `get_by_placeholder`, etc.) over raw CSS/XPath selectors where a meaningful accessible role/name exists.
-2. **Add a test** under [tests/](./tests) using the `page_context` (function-scoped) or `session_page_context` (session-scoped) fixture to obtain a `Page`.
-3. **Tag the test** with an existing marker (e.g. `@pytest.mark.sanity`) or register a new one in [pytest.ini](./pytest.ini).
-4. Use Playwright's `expect` assertions for auto-retrying, web-first assertions instead of hard sleeps.
+1. **Add a new team** (if needed): create `src/pages/<team>/`, `tests/<team>/`, and `src/config/<team>_config.yml`.
+2. **Add a page object** under `src/pages/<team>/`, extending [BasePage](./src/base/base_page.py) and exposing locators plus user-facing actions (e.g. `login`, `search`). Load team config via `src.utils.config.load_team_config("<team>")`. Prefer Playwright's semantic locators (`page.get_by_role`, `get_by_label`, `get_by_placeholder`, etc.) over raw CSS/XPath selectors where a meaningful accessible role/name exists.
+3. **Add a test** under `tests/<team>/` using the `page_context` (function-scoped) or `session_page_context` (session-scoped) fixture to obtain a `Page`.
+4. **Tag the test** with an existing marker (e.g. `@pytest.mark.sanity`) or register a new one in [pytest.ini](./pytest.ini).
+5. Use Playwright's `expect` assertions for auto-retrying, web-first assertions instead of hard sleeps.
 
 Example:
 
@@ -129,7 +142,7 @@ Example:
 import pytest
 from playwright.sync_api import Page, expect
 
-from src.pages.saucedemo_login_page import SauceDemoLoginPage
+from src.pages.ecommerce.saucedemo_login_page import SauceDemoLoginPage
 
 
 @pytest.mark.sanity
@@ -163,5 +176,15 @@ For actions not covered above (e.g. `hover`, `check`/`uncheck`, `select_option`)
 | Module | Provides | Notes |
 |---|---|---|
 | [file_utils.py](./src/utils/file_utils.py) | `ensure_dir(path)` | Creates a directory (and parents) if missing, returns a `Path` |
-| [config.py](./src/utils/config.py) | `SAUCEDEMO_BASE_URL`, `DUCKDUCKGO_BASE_URL` | Centralized base URLs for apps under test; override per environment, e.g. `SAUCEDEMO_BASE_URL=https://staging.saucedemo.com poetry run pytest` |
+| [config.py](./src/utils/config.py) | `load_team_config(team)` | Loads `src/config/<team>_config.yml`; individual values can be overridden via an env var named after the uppercased YAML key, e.g. `SAUCEDEMO_BASE_URL=https://staging.saucedemo.com poetry run pytest tests/ecommerce/` |
 | [logger.py](./src/utils/logger.py) | `get_logger(name)` | Structured logging (timestamp/level) — use instead of `print()` in fixtures/tests |
+
+### Team configuration
+
+Each team's config lives in its own YAML file under [src/config](./src/config), e.g. [ecommerce_config.yml](./src/config/ecommerce_config.yml):
+
+```yaml
+saucedemo_base_url: "https://www.saucedemo.com/"
+```
+
+Page objects load their team's config via `load_team_config("<team>")` (see [config.py](./src/utils/config.py)) rather than hardcoding URLs.

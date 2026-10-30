@@ -10,6 +10,15 @@ from src.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--env",
+        action="store",
+        default="dev",
+        help="Target environment for team configs (e.g. dev, staging)",
+    )
+
+
 @pytest.fixture(scope="session")
 def browser_instance(playwright: Playwright) -> Browser:
     browser = playwright.chromium.launch(headless=False, args=["--start-maximized"])
