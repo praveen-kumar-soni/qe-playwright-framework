@@ -10,7 +10,7 @@ A Python test automation framework built on [Playwright](https://playwright.dev/
 - **Automatic failure artifacts** — screenshots, video recordings, and Playwright traces are captured and attached to the Allure report whenever a test fails.
 - **Allure reporting** for rich, interactive HTML test reports, plus a self-contained `pytest-html` report.
 - **Custom markers** (e.g. `sanity`) to group and selectively run tests.
-- **Shared utilities** ([src/utils](./src/utils)) — directory helpers, per-team YAML config loading (with env-var overrides), and structured logging, used by `conftest.py` and page objects.
+- **Shared utilities** ([src/utils](./src/utils)) — directory helpers, per-team YAML config loading via `--env`-selectable environments (with per-key env-var overrides), and structured logging, used by `conftest.py` and page objects.
 
 ## Project Structure
 
@@ -31,11 +31,14 @@ qe-playwright-framework/
 │   └── utils/                 # Shared helpers (file_utils, config loader, logger)
 ├── tests/                     # Test files only — organized to mirror src/pages by team
 │   ├── ecommerce/
+│   │   └── conftest.py        # team_config fixture (reads --env, loads ecommerce_config.yml)
 │   └── search/
-├── screenshots/               # Failure screenshots (auto-generated)
-├── videos/                    # Failure videos (auto-generated)
+│       └── conftest.py        # team_config fixture (reads --env, loads search_config.yml)
+├── screenshots/               # Failure screenshots (auto-generated, see conftest.py)
+├── videos/                    # Videos kept per --video-mode (auto-generated, see conftest.py)
 ├── allure-results/             # Raw Allure results (auto-generated)
-└── test-output/                # Failure traces + pytest --output dir (auto-generated)
+├── test-output/                # Failure traces (auto-generated, see conftest.py)
+└── logs/                       # Per-run log files (auto-generated)
 ```
 
 ## Prerequisites
@@ -92,6 +95,18 @@ Run a specific file:
 poetry run pytest tests/ecommerce/test_saucedemo_login.py
 ```
 
+Run with a specific environment (default is `dev`):
+
+```bash
+poetry run pytest --env=staging
+```
+
+Control when videos are kept with `--video-mode` (default `on-failure`; see table below):
+
+```bash
+poetry run pytest --video-mode=always
+```
+
 Run only tests tagged with a marker (e.g. `sanity`):
 
 ```bash
@@ -106,15 +121,16 @@ poetry run pytest -n auto
 
 ### Reports and Artifacts
 
-Every run (configured in [pytest.ini](./pytest.ini)) produces:
+Every run produces (HTML/Allure reporting configured in [pytest.ini](./pytest.ini); failure artifacts and `--video-mode` handled in [conftest.py](./conftest.py)):
 
 | Artifact | Location | Notes |
 |---|---|---|
 | Self-contained HTML report | `report.html` | Generated via `pytest-html` |
 | Allure results | `allure-results/` | Raw results; cleaned at the start of each run |
-| Videos | `videos/` | Kept only for failed tests |
+| Videos | `videos/` | Kept based on `--video-mode` (default `on-failure`: only failed tests; `always`: every test; `never`: recording disabled) |
 | Screenshots | `screenshots/` | Captured only on failure |
 | Traces | `test-output/*_trace.zip` | Captured only on failure; see command below |
+| Log file | `logs/test_run_<timestamp>.log` | One file per `pytest` invocation, mirrors console log output |
 
 To view the Allure HTML report:
 
@@ -130,9 +146,9 @@ poetry run playwright show-trace test-output/<test_name>_trace.zip
 
 ## Writing Tests
 
-1. **Add a new team** (if needed): create `src/pages/<team>/`, `tests/<team>/`, and `src/config/<team>_config.yml`.
-2. **Add a page object** under `src/pages/<team>/`, extending [BasePage](./src/base/base_page.py) and exposing locators plus user-facing actions (e.g. `login`, `search`). Load team config via `src.utils.config.load_team_config("<team>")`. Prefer Playwright's semantic locators (`page.get_by_role`, `get_by_label`, `get_by_placeholder`, etc.) over raw CSS/XPath selectors where a meaningful accessible role/name exists.
-3. **Add a test** under `tests/<team>/` using the `page_context` (function-scoped) or `session_page_context` (session-scoped) fixture to obtain a `Page`.
+1. **Add a new team** (if needed): create `src/pages/<team>/`, `tests/<team>/` (with its own `conftest.py` defining a `team_config` fixture), and `src/config/<team>_config.yml`.
+2. **Add a page object** under `src/pages/<team>/`, extending [BasePage](./src/base/base_page.py) and exposing locators plus user-facing actions (e.g. `login`, `search`). Keep page objects config-agnostic — take the base URL as a parameter (e.g. `open(base_url: str)`) rather than loading config internally. Prefer Playwright's semantic locators (`page.get_by_role`, `get_by_label`, `get_by_placeholder`, etc.) over raw CSS/XPath selectors where a meaningful accessible role/name exists.
+3. **Add a test** under `tests/<team>/` using the `page_context` (function-scoped) or `session_page_context` (session-scoped) fixture to obtain a `Page`, plus the team's `team_config` fixture for base URLs/settings.
 4. **Tag the test** with an existing marker (e.g. `@pytest.mark.sanity`) or register a new one in [pytest.ini](./pytest.ini).
 5. Use Playwright's `expect` assertions for auto-retrying, web-first assertions instead of hard sleeps.
 
@@ -146,9 +162,9 @@ from src.pages.ecommerce.saucedemo_login_page import SauceDemoLoginPage
 
 
 @pytest.mark.sanity
-def test_saucedemo_login_with_credentials_from_footer(page_context: Page):
+def test_saucedemo_login_with_credentials_from_footer(page_context: Page, team_config):
     login_page = SauceDemoLoginPage(page_context)
-    login_page.open()
+    login_page.open(team_config["saucedemo_base_url"])
 
     username, password = login_page.get_credentials()
     login_page.login(username, password)
@@ -176,15 +192,20 @@ For actions not covered above (e.g. `hover`, `check`/`uncheck`, `select_option`)
 | Module | Provides | Notes |
 |---|---|---|
 | [file_utils.py](./src/utils/file_utils.py) | `ensure_dir(path)` | Creates a directory (and parents) if missing, returns a `Path` |
-| [config.py](./src/utils/config.py) | `load_team_config(team)` | Loads `src/config/<team>_config.yml`; individual values can be overridden via an env var named after the uppercased YAML key, e.g. `SAUCEDEMO_BASE_URL=https://staging.saucedemo.com poetry run pytest tests/ecommerce/` |
-| [logger.py](./src/utils/logger.py) | `get_logger(name)` | Structured logging (timestamp/level) — use instead of `print()` in fixtures/tests |
+| [config.py](./src/utils/config.py) | `load_team_config(team, env="dev")` | Loads the `env` block from `src/config/<team>_config.yml`; individual values can be overridden via an env var named after the uppercased YAML key, e.g. `SAUCEDEMO_BASE_URL=https://example.com poetry run pytest tests/ecommerce/` |
+| [logger.py](./src/utils/logger.py) | `get_logger(name)` | Structured logging (timestamp/level) to both the console and `logs/test_run_<timestamp>.log` — use instead of `print()` in fixtures/tests |
 
 ### Team configuration
 
-Each team's config lives in its own YAML file under [src/config](./src/config), e.g. [ecommerce_config.yml](./src/config/ecommerce_config.yml):
+Each team's config lives in its own YAML file under [src/config](./src/config), keyed by environment, e.g. [ecommerce_config.yml](./src/config/ecommerce_config.yml):
 
 ```yaml
-saucedemo_base_url: "https://www.saucedemo.com/"
+dev:
+  saucedemo_base_url: "https://www.saucedemo.com/"
+staging:
+  saucedemo_base_url: "https://staging.saucedemo.com/"
 ```
 
-Page objects load their team's config via `load_team_config("<team>")` (see [config.py](./src/utils/config.py)) rather than hardcoding URLs.
+Select the active environment with `--env` (default `dev`): `poetry run pytest --env=staging`.
+
+Page objects stay config-agnostic — they don't load config themselves. Each team's `tests/<team>/conftest.py` defines a `team_config` fixture that reads `--env` and calls `load_team_config("<team>", env=...)`; tests then pass the needed value into the page object, e.g. `login_page.open(team_config["saucedemo_base_url"])`. Adding a new team only means adding its own `src/config/<team>_config.yml` and `tests/<team>/conftest.py` — no shared files need to change.
