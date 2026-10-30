@@ -126,7 +126,7 @@ Every run produces (HTML/Allure reporting configured in [pytest.ini](./pytest.in
 | Artifact | Location | Notes |
 |---|---|---|
 | Self-contained HTML report | `report.html` | Generated via `pytest-html` |
-| Allure results | `allure-results/` | Raw results; cleaned at the start of each run |
+| Allure results | `allure-results/` | Raw results; generated automatically by `--alluredir=allure-results` (set in [pytest.ini](./pytest.ini)); cleaned at the start of each run via `--clean-alluredir` |
 | Videos | `videos/` | Kept based on `--video-mode` (default `on-failure`: only failed tests; `always`: every test; `never`: recording disabled) |
 | Screenshots | `screenshots/` | Captured only on failure |
 | Traces | `test-output/*_trace.zip` | Captured only on failure; see command below |
@@ -137,6 +137,11 @@ To view the Allure HTML report:
 ```bash
 allure serve allure-results
 ```
+
+> If the browser tab fails to load (e.g. `This site can't be reached` at a LAN IP like `http://192.168.x.x:PORT/`), Allure picked your machine's network hostname instead of `localhost`. Force it explicitly:
+> ```bash
+> allure serve allure-results -h localhost
+> ```
 
 To inspect a trace file (opens the interactive [Playwright Trace Viewer](https://playwright.dev/python/docs/trace-viewer)):
 
