@@ -13,7 +13,7 @@ class SearchPage(BasePage):
         self.results = page.locator('article[data-testid="result"]')
 
     def open(self, base_url: str):
-        self.page.goto(base_url)
+        self.navigate(base_url)
 
     def search(self, text: str):
         expect(self.search_box).to_be_visible()
